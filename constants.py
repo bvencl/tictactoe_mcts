@@ -1,0 +1,6 @@
+import numpy as np
+
+UCB_EXPLORATION_CONSTANT = (2/ np.sqrt(2))
+WIN_REWARD = 200
+LOSS_REWARD = -50
+DRAW_REWARD = -20
