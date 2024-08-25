@@ -1,0 +1,51 @@
+digraph {
+	125061412284864 [label="Action: None
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061410974480 [label="Action: 0
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410974480
+	125061410974528 [label="Action: 1
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410974528
+	125061410974672 [label="Action: 2
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410974672
+	125061410975056 [label="Action: 3
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410975056
+	125061410975248 [label="Action: 4
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410975248
+	125061410975440 [label="Action: 5
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410975440
+	125061410975632 [label="Action: 6
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410975632
+	125061410975824 [label="Action: 7
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410975824
+	125061410976016 [label="Action: 8
+Visits: 0
+Score: 0.00
+UCB1: inf"]
+	125061412284864 -> 125061410976016
+}

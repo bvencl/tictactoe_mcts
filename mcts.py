@@ -3,6 +3,7 @@ import constants
 import numpy as np
 from typing import Optional
 import copy, random
+from graphviz import Digraph
 
 
 class Node:
@@ -10,9 +11,9 @@ class Node:
         self, parent_node: Optional["Node"], board: Board, action: Optional[int], player
     ) -> None:
 
-        self.player = player
         self.parent = parent_node
         self.my_action = action
+        self.player = player
         self.state: "Board" = copy.deepcopy(board)
         if self.my_action is not None:
             self.state.positions = self.state.step(self.my_action, player=self.player)
@@ -49,25 +50,29 @@ class Node:
             return True
         return False
 
-    def best_child(self):
+    def best_child(self) -> "Node":
         if not self.children:
+            self.to_graphviz().render("mcts_tree_error", format="png")
             raise ValueError("No children to choose from in best_child.")
         for child in self.children:
             if child is not None:
                 child.update_ucb1()
-        best = self.children[0]
-        for child in self.children:
-            if child is not None and child.ucb1 > best.ucb1:
-                best = child
+        
+        best = max(
+            (child for child in self.children if child.ucb1 != np.inf),
+            key=lambda child: child.ucb1,
+            default=None,
+        )
+        if best is None:
+            self.to_graphviz().render("mcts_tree_error", format="png")
+            raise ValueError("No valid children with finite ucb1 value.")
         return best
 
-    def most_robust_child(self):
+    def most_robust_child(self) -> "Node":
         if not self.children:
+            self.to_graphviz().render("mcts_tree_error", format="png")
             raise ValueError("No children to choose from in most_robust_child.")
-        best = self.children[0]
-        for child in self.children:
-            if child is not None and child.visit_count > best.visit_count:
-                best = child
+        best = max(self.children, key=lambda child: child.visit_count)
         return best
 
     def update_ucb1(self) -> float:
@@ -89,6 +94,25 @@ class Node:
                 exploitation = self.score / self.visit_count
             return exploitation + exploration
 
+    def to_graphviz(self, dot=None):
+        if dot is None:
+            dot = Digraph()
+            dot.node(
+                name=str(id(self)),
+                label=f"Action: {self.my_action}\nVisits: {self.visit_count}\nScore: {self.score:.2f}\nUCB1: {self.ucb1:.2f}",
+            )
+
+        for child in self.children:
+            if child is not None:
+                dot.node(
+                    name=str(id(child)),
+                    label=f"Action: {child.my_action}\nVisits: {child.visit_count}\nScore: {child.score:.2f}\nUCB1: {child.ucb1:.2f}",
+                )
+                dot.edge(str(id(self)), str(id(child)))
+                child.to_graphviz(dot)
+
+        return dot
+
 
 class Agent:
     def __init__(self, current_state: Board):
@@ -101,27 +125,27 @@ class Agent:
     def Turn(self, depth):
         turncount = 0
         while self.current_global_state.is_terminal() is None:
-            b = 0
-            for b in range(depth):
-                print(b)
-                while self.current_node.is_leaf() == False:
+            if turncount == 1:
+                print("fasz")
+            for _ in range(depth):
+                print(_)
+                while not self.current_node.is_leaf():
                     self.current_node = self.current_node.best_child()
+                if self.current_node.visit_count == 0:
+                    evaluation = self.rollout(copy.deepcopy(self.current_node))
                 else:
-                    if self.current_node.visit_count == 0:
-                        evaluation = self.rollout(copy.deepcopy(self.current_node))
-                    else:
-                        self.current_node.expand_node()
-                        best_child = self.current_node.best_child()
-                        evaluation = self.rollout(copy.deepcopy(best_child))
-                    self.backpropagation(evaluation)
-                    self.current_node = self.current_global_node
+                    self.current_node.expand_node()
+                    best_child = self.current_node.best_child()
+                    evaluation = self.rollout(copy.deepcopy(best_child))
+                self.backpropagation(evaluation)
+                self.current_node = self.current_global_node
 
-            self.current_global_node = self.current_global_node.best_child()
+            self.current_global_node = self.current_global_node.most_robust_child()
             self.update_global_state()
             golbal_state_to_render = copy.deepcopy(self.current_global_state)
             if turncount % 2 == 1:
                 golbal_state_to_render.positions *= -1
-            golbal_state_to_render.render()
+            # golbal_state_to_render.render()
             self.current_global_state.turn_table()
             turncount += 1
 
@@ -168,3 +192,6 @@ class Game:
 
 game = Game()
 game.game()
+game.agent.current_global_state.render()
+dot = game.agent.root.to_graphviz()
+dot.render("mcts_tree", format="png")
