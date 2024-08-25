@@ -16,7 +16,7 @@ class Node:
         self.player = player
         self.visit_count = [0, 0]
         self.score = [0.0, 0.0]
-        self.ucb1 = [0.0, 0.0]
+        self.ucb1 = [np.inf, np.inf]
         self.state = copy.deepcopy(board)
         if self.action is not None:
             self.state.step(self.action, self.player)
