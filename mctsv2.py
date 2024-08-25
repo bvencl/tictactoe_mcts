@@ -1,7 +1,7 @@
 from tictactoe import Board
 import constants
 import numpy as np
-from typing import Optional
+from typing import Optional, List
 import copy, random
 from graphviz import Digraph
 
@@ -14,24 +14,28 @@ class Node:
         self.parent = parent_node
         self.action = action
         self.player = player
-        self.visit_count = 0
-        self.score = 0.0
-        self.ucb1 = 0.0
+        self.visit_count = [0, 0]
+        self.score = [0.0, 0.0]
+        self.ucb1 = [0.0, 0.0]
         self.state = copy.deepcopy(board)
         if self.action is not None:
             self.state.step(self.action, self.player)
         self.children = []
         self.legal_actions = self.state.free_squares()
         self.is_terminal_node = self.state.is_terminal()
+        if self.player == 1:
+            self.side = 0
+        else:
+            self.side = 1
 
-    def evaluate(self):
+    def evaluate(self) -> Optional[List[float]]:
         terminal_state = self.state.is_terminal()
-        if terminal_state == self.player:
-            return constants.WIN_REWARD
-        if terminal_state == -self.player:
-            return constants.LOSS_REWARD
+        if terminal_state == 1:
+            return [constants.WIN_REWARD, constants.LOSS_REWARD]
+        if terminal_state == -1:
+            return [constants.LOSS_REWARD, constants.WIN_REWARD]
         if terminal_state == 0:
-            return constants.DRAW_REWARD
+            return [constants.DRAW_REWARD, constants.DRAW_REWARD]
         else:
             return None
 
@@ -44,6 +48,7 @@ class Node:
         if self.is_terminal_node is not None:
             return self.evaluate()
         else:
+            print("node was expanded")
             self.children = [
                 Node(
                     parent_node=self,
@@ -63,43 +68,62 @@ class Node:
                 child.update_ucb1()
         best = self.children[0]
         for child in self.children:
-            if child is not None and child.ucb1 > best.ucb1:
+            if child is not None and child.ucb1[self.side] > best.ucb1[self.side]:
                 best = child
         return best
 
     def robust_child(self) -> "Node":
         if not self.children:
             raise ValueError("No children to choose from in most_robust_child.")
-        best = max(self.children, key=lambda child: child.visit_count)
+        best = max(
+            self.children,
+            key=lambda child: child.visit_count[self.side],
+        )
         return best
 
     def confident_child(self) -> "Node":
         if not self.children:
             raise ValueError("No children to choose from in confident_child.")
         best = max(
-            (child for child in self.children if child.ucb1 != np.inf),
-            key=lambda child: child.ucb1,
+            (child for child in self.children if child.ucb1[self.side] != np.inf),
+            key=lambda child: child.ucb1[self.side],
         )
         return best
 
-    def update_ucb1(self) -> float:
+    def update_ucb1(self) -> List[float]:
         self.ucb1 = self.calculate_ucb1()
         return self.ucb1
 
-    def calculate_ucb1(self) -> float:
-        if self.visit_count == 0:
-            return np.inf
+    def calculate_ucb1(self) -> List[float]:
+        if self.visit_count[0] == 0:
+            self.ucb1[0] = np.inf
+            was_first = True
+        elif self.visit_count[1] == 0:
+            self.ucb1[1] = np.inf
+            was_first = True
+        if was_first:
+            return self.ucb1
         else:
-            if self.parent == None:
+            if self.parent is None:
                 exploration = 0
             else:
                 exploration = (
                     2
                     * constants.UCB_EXPLORATION_CONSTANT
-                    * np.sqrt((2 * np.log(self.parent.visit_count)) / self.visit_count)
+                    * np.sqrt(
+                        (2 * np.log(self.parent.visit_count[self.side]))
+                        / self.visit_count[self.side]
+                    )
                 )
-                exploitation = self.score / self.visit_count
-            return exploitation + exploration
+
+            exploitation_player1 = self.score[0] / self.visit_count[0]
+            exploitation_player2 = self.score[1] / self.visit_count[0]
+
+            ucb1_player1 = exploitation_player1 + exploration
+            ucb1_player2 = exploitation_player2 + exploration
+
+            self.ucb1 = [ucb1_player1, ucb1_player2]
+            return self.ucb1
 
     def to_graphviz(self, dot=None, highlight_node=None):
         if dot is None:
@@ -141,13 +165,11 @@ class Agent:
 
     def Turn(self, depth):
         while self.current_global_state.is_terminal() is None:
-            if self.turncount == 1:
-                print("fasz")
             for _ in range(depth):
                 print(_)
                 while not self.current_node.is_leaf():
                     self.current_node = self.current_node.best_child()
-                if self.current_node.visit_count == 0:
+                if self.current_node.visit_count[self.current_node.side] == 0:
                     copied_node = copy.deepcopy(self.current_node)
                     evaluation = self.rollout(copied_node)
                     del copied_node
@@ -171,24 +193,26 @@ class Agent:
             self.current_global_state.turn_table()
             self.turncount += 1
 
-    def update_global_state(self):
-        self.current_global_state.step(self.current_global_node.action, 1)
-
     def backpropagation(self, result):
         node = self.current_node
         while node is not None:
-            node.visit_count += 1
-            node.score += result
+            node.visit_count[node.side] += 1
+            node.score[0] += result[0]
+            node.score[1] += result[1]
             node = node.parent
 
     def rollout(self, node: Node):
         current_player = node.player
+        print("Rollout was done")
         while node.state.is_terminal() is None:
             node.legal_actions = node.state.free_squares()
             random_action = random.choice(node.legal_actions)
             node.state.step(random_action, -current_player)
             current_player = -current_player
         return node.evaluate()
+
+    def update_global_state(self):
+        self.current_global_state.step(self.current_global_node.action, 1)
 
     def graphviz_render(self, filename="mcts_tree", highlight_node=None):
         dot = self.root.to_graphviz(highlight_node=highlight_node)
@@ -204,5 +228,6 @@ class Game:
         self.agent.Turn(250)
 
 
-game = Game()
-game.game()
+if True:
+    game = Game()
+    game.game()
