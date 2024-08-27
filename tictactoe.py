@@ -97,7 +97,3 @@ class Board:
         return [
             i for i, square in enumerate(self.positions.view(3**2)) if square == 0
         ] or []
-
-    def player_turn(self) -> int:
-        player_step = input("Te jössz bohóc")
-        return int(player_step)
