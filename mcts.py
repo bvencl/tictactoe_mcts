@@ -213,10 +213,6 @@ class Game:
         self.agent.Turn(500)
 
 
-if len(sys.argv) > 1 and sys.argv[1].lower() == "true":
-    twoplayermode = True
-else:
-    twoplayermode = False
-
+twoplayermode = True
 game = Game()
 game.game()
