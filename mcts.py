@@ -3,6 +3,9 @@ import constants
 import numpy as np
 from typing import Optional, List
 import copy, random
+import graphviz
+
+side = 0
 
 
 class Node:
@@ -13,7 +16,7 @@ class Node:
         self.parent = parent_node
         self.action = action
         self.player = player
-        self.visit_count = [0, 0]
+        self.visit_count = [0.0, 0.0]
         self.score = [0.0, 0.0]
         self.ucb1 = [np.inf, np.inf]
         self.state = copy.deepcopy(board)
@@ -26,6 +29,7 @@ class Node:
             self.side = 0
         else:
             self.side = 1
+        self.was_selected = False
 
     def evaluate(self) -> Optional[List[float]]:
         terminal_state = self.state.is_terminal()
@@ -114,18 +118,15 @@ class Node:
             return self.ucb1
 
 
-side = 0
-
-
 class Agent:
 
     def __init__(self, current_state: Board):
-        self.turncount = 0
         self.current_global_state = current_state
         self.root = Node(parent_node=None, board=current_state, action=None, player=-1)
         self.root.expand_node()
         self.current_global_node = self.root
         self.current_node = self.root
+        self.tree = {}
 
     def Turn(self, depth):
         global side
@@ -151,6 +152,7 @@ class Agent:
                         self.backpropagation(evaluation)
                 self.current_node = self.current_global_node
 
+            self.current_global_node.was_selected = True
             self.current_global_node = self.current_global_node.robust_child()
             self.update_global_state()
             self.current_global_state.render()
@@ -161,8 +163,10 @@ class Agent:
         node = self.current_node
         while node is not None:
             node.visit_count[side % 2] += 1
+            node.visit_count[(side + 1) % 2] += 0.2
             node.score[0] += result[0]
             node.score[1] += result[1]
+            self.update_tree(node)
             node = node.parent
 
     def rollout(self, node: Node):
@@ -179,6 +183,33 @@ class Agent:
             self.current_global_node.action, self.current_global_node.player
         )
 
+    def update_tree(self, node):
+        if node not in self.tree:
+            self.tree[node] = {
+                "visit_count": [0, 0],
+                "score": [0, 0],
+                "action": node.action,
+                "selected": node.was_selected,
+            }
+        self.tree[node]["visit_count"] = node.visit_count
+        self.tree[node]["score"] = node.score
+        self.tree[node]["selected"] = node.was_selected
+
+    def draw_tree(self):
+        dot = graphviz.Digraph(comment="MCTS Tree")
+        for node, data in self.tree.items():
+            node_id = str(id(node))
+            action = data["action"]
+            label = f"Action: {action}\nVisits: {data['visit_count']}, Score: {data['score']}"
+            if data["selected"]:
+                dot.node(node_id, label, style="filled", fillcolor="red")
+            else:
+                dot.node(node_id, label)
+            if node.parent:
+                parent_id = str(id(node.parent))
+                dot.edge(parent_id, node_id)
+        dot.render("mcts_tree", format="svg")
+
 
 class Game:
     def __init__(self):
@@ -192,3 +223,4 @@ class Game:
 if True:
     game = Game()
     game.game()
+    game.agent.draw_tree()
