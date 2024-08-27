@@ -2,7 +2,6 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
-from matplotlib.animation import FuncAnimation
 from typing import Optional
 
 
@@ -18,7 +17,7 @@ class Board:
         self.positions = torch.zeros((3, 3), dtype=torch.int)
         print("Game reseted")
 
-    def render(self) -> None:
+    def render(self, iteration_time) -> None:
         print(self.positions)
         cmap = ListedColormap(["white", "blue", "red"])
         bounds = [-1.5, -0.5, 0.5, 1.5]
@@ -27,34 +26,40 @@ class Board:
         fig, ax = plt.subplots()
         im = ax.imshow(self.positions, cmap=cmap, norm=norm)
 
-        def update(*args):
-            ax.clear()
-            im = ax.imshow(self.positions, cmap=cmap, norm=norm)
-            for i in range(3):
-                for j in range(3):
-                    if self.positions[i, j] == 1:
-                        ax.text(
-                            j,
-                            i,
-                            "X",
-                            ha="center",
-                            va="center",
-                            fontsize=30,
-                            color="black",
-                        )
-                    elif self.positions[i, j] == -1:
-                        ax.text(
-                            j,
-                            i,
-                            "O",
-                            ha="center",
-                            va="center",
-                            fontsize=30,
-                            color="black",
-                        )
-            return (im,)
+        time_text = ax.text(
+            0.5,
+            1.05,
+            f"Iteration time: {iteration_time:.4f} seconds",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=12,
+            color="black",
+        )
 
-        ani = FuncAnimation(fig, update, interval=1)
+        for i in range(3):
+            for j in range(3):
+                if self.positions[i, j] == 1:
+                    ax.text(
+                        j,
+                        i,
+                        "X",
+                        ha="center",
+                        va="center",
+                        fontsize=30,
+                        color="black",
+                    )
+                elif self.positions[i, j] == -1:
+                    ax.text(
+                        j,
+                        i,
+                        "O",
+                        ha="center",
+                        va="center",
+                        fontsize=30,
+                        color="black",
+                    )
+
         plt.show()
 
     def turn_table(self) -> None:
@@ -97,7 +102,3 @@ class Board:
         return [
             i for i, square in enumerate(self.positions.view(3**2)) if square == 0
         ] or []
-
-    def player_turn(self) -> int:
-        player_step = input("Te jössz bohóc")
-        return int(player_step)

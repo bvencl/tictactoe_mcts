@@ -4,6 +4,7 @@ import numpy as np
 from typing import Optional, List
 import copy, random
 import graphviz
+import time
 
 side = 0
 
@@ -131,6 +132,7 @@ class Agent:
     def Turn(self, depth):
         global side
         while self.current_global_state.is_terminal() is None:
+            start_time = time.time()
             for _ in range(depth):
                 print(_)
                 while not self.current_node.is_leaf():
@@ -152,10 +154,12 @@ class Agent:
                         self.backpropagation(evaluation)
                 self.current_node = self.current_global_node
 
+            end_time = time.time()
+            iteration_time = end_time - start_time
             self.current_global_node.was_selected = True
             self.current_global_node = self.current_global_node.robust_child()
             self.update_global_state()
-            self.current_global_state.render()
+            self.current_global_state.render(iteration_time)
             side += 1
 
     def backpropagation(self, result):
@@ -190,17 +194,19 @@ class Agent:
                 "score": [0, 0],
                 "action": node.action,
                 "selected": node.was_selected,
+                "ucb1": node.ucb1,
             }
         self.tree[node]["visit_count"] = node.visit_count
         self.tree[node]["score"] = node.score
         self.tree[node]["selected"] = node.was_selected
+        self.tree[node]["ucb1"] = node.ucb1
 
     def draw_tree(self):
         dot = graphviz.Digraph(comment="MCTS Tree")
         for node, data in self.tree.items():
             node_id = str(id(node))
             action = data["action"]
-            label = f"Action: {action}\nVisits: {data['visit_count']}, Score: {data['score']}"
+            label = f"Action: {action}\nVisits: {data['visit_count']}, UCB1: {data['ucb1']}"
             if data["selected"]:
                 dot.node(node_id, label, style="filled", fillcolor="red")
             else:
