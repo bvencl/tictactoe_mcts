@@ -1,10 +1,8 @@
 from tictactoe import Board
 import constants
-import numpy as np
 from typing import Optional, List
-import copy, random
+import copy, random, math, time
 import graphviz
-import time
 
 side = 0
 
@@ -17,9 +15,9 @@ class Node:
         self.parent = parent_node
         self.action = action
         self.player = player
-        self.visit_count = [0.0, 0.0]
+        self.visit_count = [0, 0]
         self.score = [0.0, 0.0]
-        self.ucb1 = [np.inf, np.inf]
+        self.ucb1 = [math.inf, math.inf]
         self.state = copy.deepcopy(board)
         if self.action is not None:
             self.state.step(self.action, self.player)
@@ -88,7 +86,7 @@ class Node:
         if not self.children:
             raise ValueError("No children to choose from in confident_child.")
         best = max(
-            (child for child in self.children if child.ucb1[side % 2] != np.inf),
+            (child for child in self.children if child.ucb1[side % 2] != math.inf),
             key=lambda child: child.ucb1[side % 2],
         )
         return best
@@ -96,7 +94,7 @@ class Node:
     def calculate_ucb1(self) -> List[float]:
         global side
         if self.visit_count[side % 2] == 0:
-            self.ucb1[side % 2] = np.inf
+            self.ucb1[side % 2] = math.inf
             return self.ucb1
         else:
             if self.parent is None:
@@ -105,8 +103,8 @@ class Node:
                 exploration_side = (
                     2
                     * constants.UCB_EXPLORATION_CONSTANT
-                    * np.sqrt(
-                        (2 * np.log(self.parent.visit_count[side % 2]))
+                    * math.sqrt(
+                        (2 * math.log(self.parent.visit_count[side % 2]))
                         / self.visit_count[side % 2]
                     )
                 )
@@ -158,6 +156,7 @@ class Agent:
             iteration_time = end_time - start_time
             self.current_global_node.was_selected = True
             self.current_global_node = self.current_global_node.robust_child()
+            self.update_tree(self.current_global_node)
             self.update_global_state()
             self.current_global_state.render(iteration_time)
             side += 1
@@ -167,7 +166,7 @@ class Agent:
         node = self.current_node
         while node is not None:
             node.visit_count[side % 2] += 1
-            node.visit_count[(side + 1) % 2] += 0.2
+            # node.visit_count[(side + 1) % 2] += 0.2
             node.score[0] += result[0]
             node.score[1] += result[1]
             self.update_tree(node)
@@ -206,7 +205,7 @@ class Agent:
         for node, data in self.tree.items():
             node_id = str(id(node))
             action = data["action"]
-            label = f"Action: {action}\nVisits: {data['visit_count']}, UCB1: {data['ucb1']}"
+            label = f"Action: {action}\nVisits: {data['visit_count']}\n, Score: {data['score']}\n, UCB1: {data['ucb1']}"
             if data["selected"]:
                 dot.node(node_id, label, style="filled", fillcolor="red")
             else:
