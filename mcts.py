@@ -12,27 +12,37 @@ class Node:
     ) -> None:
 
         self.parent = parent_node
-        self.my_action = action
+        self.action = action
         self.player = player
-        self.state: "Board" = copy.deepcopy(board)
-        if self.my_action is not None:
-            self.state.positions = self.state.step(self.my_action, player=self.player)
-
         self.visit_count = 0
         self.score = 0.0
-        self.all_actions = self.state.free_squares()
-        self.ucb1 = self.calculate_ucb1()
+        self.ucb1 = 0.0
+        self.state = copy.deepcopy(board)
+        if self.action is not None:
+            self.state.step(self.action, self.player)
         self.children = []
+        self.legal_actions = self.state.free_squares()
+        self.is_terminal_node = self.state.is_terminal()
 
-        self.action_count = len(self.all_actions)
-        self.children_count = len(self.children)
+    def evaluate(self):
+        terminal_state = self.state.is_terminal()
+        if terminal_state == self.player:
+            return constants.WIN_REWARD
+        if terminal_state == -self.player:
+            return constants.LOSS_REWARD
+        if terminal_state == 0:
+            return constants.DRAW_REWARD
+        else:
+            return None
 
-    def print_counts(self):
-        print(self.children_count, self.visit_count, self.score, self.ucb1)
+    def is_leaf(self):
+        if self.children == [] or self.is_terminal_node is not None:
+            return True
+        return False
 
-    def expand_node(self) -> None:
-        if not self.all_actions:
-            raise ValueError("No children to choose from in best_child.")
+    def expand_node(self):
+        if self.is_terminal_node is not None:
+            return self.evaluate()
         else:
             self.children = [
                 Node(
@@ -41,37 +51,36 @@ class Node:
                     action=action,
                     player=-self.player,
                 )
-                for action in self.all_actions
+                for action in self.legal_actions
             ]
             self.children_count = len(self.children)
 
-    def is_leaf(self):
-        if self.children == [] or self.state.is_terminal() is not None:
-            return True
-        return False
-
     def best_child(self) -> "Node":
-        if not self.children:
-            raise ValueError("No children to choose from in best_child.")
+        if self.is_terminal_node is not None:
+            return self
         for child in self.children:
             if child is not None:
-                child.update_ucb1()
+                child.calculate_ucb1()
         best = self.children[0]
         for child in self.children:
             if child is not None and child.ucb1 > best.ucb1:
                 best = child
         return best
 
-    def most_robust_child(self) -> "Node":
+    def robust_child(self) -> "Node":
         if not self.children:
-            self.to_graphviz().render("mcts_tree_error", format="png")
-            raise ValueError("No children to choose from in most_robust_child.")
+            raise ValueError("No children to choose from in robust_child.")
         best = max(self.children, key=lambda child: child.visit_count)
         return best
 
-    def update_ucb1(self) -> float:
-        self.ucb1 = self.calculate_ucb1()
-        return self.ucb1
+    def confident_child(self) -> "Node":
+        if not self.children:
+            raise ValueError("No children to choose from in confident_child.")
+        best = max(
+            (child for child in self.children if child.ucb1 != np.inf),
+            key=lambda child: child.ucb1,
+        )
+        return best
 
     def calculate_ucb1(self) -> float:
         if self.visit_count == 0:
@@ -88,25 +97,6 @@ class Node:
                 exploitation = self.score / self.visit_count
             return exploitation + exploration
 
-    def to_graphviz(self, dot=None):
-        if dot is None:
-            dot = Digraph()
-            dot.node(
-                name=str(id(self)),
-                label=f"Action: {self.my_action}\nVisits: {self.visit_count}\nScore: {self.score:.2f}\nUCB1: {self.ucb1:.2f}",
-            )
-
-        for child in self.children:
-            if child is not None:
-                dot.node(
-                    name=str(id(child)),
-                    label=f"Action: {child.my_action}\nVisits: {child.visit_count}\nScore: {child.score:.2f}\nUCB1: {child.ucb1:.2f}",
-                )
-                dot.edge(str(id(self)), str(id(child)))
-                child.to_graphviz(dot)
-
-        return dot
-
 
 class Agent:
     def __init__(self, current_state: Board):
@@ -119,47 +109,36 @@ class Agent:
 
     def Turn(self, depth):
         while self.current_global_state.is_terminal() is None:
-            if self.turncount == 1:
-                print("fasz")
             for _ in range(depth):
                 print(_)
                 while not self.current_node.is_leaf():
                     self.current_node = self.current_node.best_child()
                 if self.current_node.visit_count == 0:
-                    evaluation = self.rollout(copy.deepcopy(self.current_node))
+                    copied_node = copy.deepcopy(self.current_node)
+                    evaluation = self.rollout(copied_node)
+                    del copied_node
                 else:
-                    eval = self.current_node.state.is_terminal()
-                    if eval is not None and eval > 0:
-                        self.step(self.current_node.my_action)
-
                     self.current_node.expand_node()
                     best_child = self.current_node.best_child()
-                    evaluation = self.rollout(copy.deepcopy(best_child))
+                    copied_node = copy.deepcopy(best_child)
+                    evaluation = self.rollout(copied_node)
+                    del copied_node
+
                 self.backpropagation(evaluation)
                 self.current_node = self.current_global_node
-            self.step(None)
 
-    def step(self, forced_action: Optional[int]):
-        if (
-            forced_action is not None
-            and self.current_global_node == self.current_node.parent
-        ):
-            self.current_global_node = self.current_node
-            self.update_global_state()
-        else:
-            self.current_global_node = self.current_global_node.most_robust_child()
+            self.current_global_node = self.current_global_node.robust_child()
             self.update_global_state()
             global_state_to_render = copy.deepcopy(self.current_global_state)
-        if self.turncount % 2 == 1:
-            global_state_to_render.positions *= -1
-        global_state_to_render.render()
-        del global_state_to_render
-
-        self.current_global_state.turn_table()
-        self.turncount += 1
+            if self.turncount % 2 == 1:
+                global_state_to_render.positions *= -1
+            global_state_to_render.render()
+            del global_state_to_render
+            self.current_global_state.turn_table()
+            self.turncount += 1
 
     def update_global_state(self):
-        self.current_global_state.step(self.current_global_node.my_action, 1)
+        self.current_global_state.step(self.current_global_node.action, 1)
 
     def backpropagation(self, result):
         node = self.current_node
@@ -169,25 +148,13 @@ class Agent:
             node = node.parent
 
     def rollout(self, node: Node):
-        current_state = node.state
         current_player = node.player
-        while current_state.is_terminal() is None:
-            node.all_actions = current_state.free_squares()
-            random_action = random.choice(node.all_actions)
-            current_state.step(random_action, -current_player)
+        while node.state.is_terminal() is None:
+            node.legal_actions = node.state.free_squares()
+            random_action = random.choice(node.legal_actions)
+            node.state.step(random_action, -current_player)
             current_player = -current_player
-        return self.evaluate(current_state, node.player)
-
-    def evaluate(self, current_state: Board, player):
-        terminal_state = current_state.is_terminal()
-        if terminal_state == player:
-            return constants.WIN_REWARD
-        if terminal_state == -player:
-            return constants.LOSS_REWARD
-        if terminal_state == 0:
-            return constants.DRAW_REWARD
-        else:
-            return None
+        return node.evaluate()
 
 
 class Game:
@@ -201,6 +168,3 @@ class Game:
 
 game = Game()
 game.game()
-game.agent.current_global_state.render()
-dot = game.agent.root.to_graphviz()
-dot.render("mcts_tree", format="png")
