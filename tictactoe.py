@@ -18,43 +18,49 @@ class Board:
         self.positions = torch.zeros((3, 3), dtype=torch.int)
         print("Game reseted")
 
-    def render(self) -> None:
+    def render(self, iteration_time: Optional[float]) -> None:
         print(self.positions)
         cmap = ListedColormap(["white", "blue", "red"])
         bounds = [-1.5, -0.5, 0.5, 1.5]
         norm = BoundaryNorm(bounds, cmap.N)
 
         fig, ax = plt.subplots()
-        im = ax.imshow(self.positions, cmap=cmap, norm=norm)
+        ax.imshow(self.positions, cmap=cmap, norm=norm)
+        if iteration_time is not None:
+            ax.text(
+                0.5,
+                1.05,
+                f"Iteration time: {iteration_time:.4f} seconds",
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+                fontsize=12,
+                color="black",
+            )
 
-        def update(*args):
-            ax.clear()
-            im = ax.imshow(self.positions, cmap=cmap, norm=norm)
-            for i in range(3):
-                for j in range(3):
-                    if self.positions[i, j] == 1:
-                        ax.text(
-                            j,
-                            i,
-                            "X",
-                            ha="center",
-                            va="center",
-                            fontsize=30,
-                            color="black",
-                        )
-                    elif self.positions[i, j] == -1:
-                        ax.text(
-                            j,
-                            i,
-                            "O",
-                            ha="center",
-                            va="center",
-                            fontsize=30,
-                            color="black",
-                        )
-            return (im,)
+        for i in range(3):
+            for j in range(3):
+                if self.positions[i, j] == 1:
+                    ax.text(
+                        j,
+                        i,
+                        "X",
+                        ha="center",
+                        va="center",
+                        fontsize=30,
+                        color="black",
+                    )
+                elif self.positions[i, j] == -1:
+                    ax.text(
+                        j,
+                        i,
+                        "O",
+                        ha="center",
+                        va="center",
+                        fontsize=30,
+                        color="black",
+                    )
 
-        ani = FuncAnimation(fig, update, interval=1)
         plt.show()
 
     def turn_table(self) -> None:

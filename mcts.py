@@ -1,8 +1,8 @@
 from tictactoe import Board
 import constants
-import numpy as np
+import graphviz
 from typing import Optional, List
-import copy, random, sys
+import copy, random, math, time
 
 side = 0
 
@@ -15,9 +15,9 @@ class Node:
         self.parent = parent_node
         self.action = action
         self.player = player
-        self.visit_count = [0, 0]
-        self.score = [0.0, 0.0]
-        self.ucb1 = [np.inf, np.inf]
+        self.visit_count = 0
+        self.score = 0.0
+        self.ucb1 = math.inf
         self.state = copy.deepcopy(board)
         if self.action is not None:
             self.state.step(self.action, self.player)
@@ -28,15 +28,16 @@ class Node:
             self.side = 0
         else:
             self.side = 1
+        self.was_selected = False
 
-    def evaluate(self) -> Optional[List[float]]:
+    def evaluate(self) -> Optional[float]:
         terminal_state = self.state.is_terminal()
-        if terminal_state == 1:
-            return [constants.WIN_REWARD, constants.LOSS_REWARD]
-        if terminal_state == -1:
-            return [constants.LOSS_REWARD, constants.WIN_REWARD]
+        if terminal_state == self.player:
+            return constants.WIN_REWARD
+        if terminal_state == -self.player:
+            return constants.LOSS_REWARD
         if terminal_state == 0:
-            return [constants.DRAW_REWARD, constants.DRAW_REWARD]
+            return constants.DRAW_REWARD
         else:
             return None
 
@@ -68,7 +69,7 @@ class Node:
                 child.calculate_ucb1()
         best = self.children[0]
         for child in self.children:
-            if child is not None and child.ucb1[side % 2] > best.ucb1[side % 2]:
+            if child is not None and child.ucb1 > best.ucb1:
                 best = child
         return best
 
@@ -77,7 +78,7 @@ class Node:
             raise ValueError("No children to choose from in most_robust_child.")
         best = max(
             self.children,
-            key=lambda child: child.visit_count[side % 2],
+            key=lambda child: child.visit_count,
         )
         return best
 
@@ -85,34 +86,32 @@ class Node:
         if not self.children:
             raise ValueError("No children to choose from in confident_child.")
         best = max(
-            (child for child in self.children if child.ucb1[side % 2] != np.inf),
-            key=lambda child: child.ucb1[side % 2],
+            (child for child in self.children if child.ucb1 != math.inf),
+            key=lambda child: child.ucb1,
         )
         return best
 
-    def calculate_ucb1(self) -> List[float]:
+    def calculate_ucb1(self) -> float:
         global side
-        if self.visit_count[side % 2] == 0:
-            self.ucb1[side % 2] = np.inf
+        if self.visit_count == 0:
+            self.ucb1 = math.inf
             return self.ucb1
         else:
             if self.parent is None:
-                exploration_side = 0
+                exploration = 0
             else:
-                exploration_side = (
+                exploration = (
                     2
                     * constants.UCB_EXPLORATION_CONSTANT
-                    * np.sqrt(
-                        (2 * np.log(self.parent.visit_count[side % 2]))
-                        / self.visit_count[side % 2]
+                    * math.sqrt(
+                        (2 * math.log(self.parent.visit_count)) / self.visit_count
                     )
                 )
 
-            exploitation_side = self.score[side % 2] / self.visit_count[side % 2]
+            exploitation = self.score / self.visit_count
+            ucb1_player = exploitation + exploration
 
-            ucb1_player_side = exploitation_side + exploration_side
-
-            self.ucb1[side % 2] = ucb1_player_side
+            self.ucb1 = ucb1_player
             return self.ucb1
 
     def find_node_with_player_action(self, player_action) -> "Node":
@@ -132,24 +131,27 @@ class Agent:
         self.root.expand_node()
         self.current_global_node = self.root
         self.current_node = self.root
+        self.tree = {}
 
     def Turn(self, depth):
         global twoplayermode
         global side
         while self.current_global_state.is_terminal() is None:
-            if side % 2 == 0 and twoplayermode is True:
+            if side % 2 == 1 and twoplayermode is True:
                 player_step = self.player_turn()
                 print(f"Players step: {player_step}")
                 self.update_global_state(player_step)
                 self.current_global_node = (
                     self.current_global_node.find_node_with_player_action(player_step)
                 )
+                self.current_global_state.render(None)
             else:
+                start_time = time.time()
                 for _ in range(depth):
                     print(_)
                     while not self.current_node.is_leaf():
                         self.current_node = self.current_node.best_child()
-                    if self.current_node.visit_count[side % 2] == 0:
+                    if self.current_node.visit_count == 0:
                         copied_node = copy.deepcopy(self.current_node)
                         evaluation = self.rollout(copied_node)
                         del copied_node
@@ -168,16 +170,19 @@ class Agent:
 
                 self.current_global_node = self.current_global_node.robust_child()
                 self.update_global_state(None)
+                end_time = time.time()
+                iteration_time = end_time - start_time
+                self.current_global_state.render(iteration_time)
+            self.current_global_node.was_selected = True
+            self.update_tree(self.current_global_node)
             side += 1
-            self.current_global_state.render()
 
     def backpropagation(self, result):
         global side
         node = self.current_node
         while node is not None:
-            node.visit_count[side % 2] += 1
-            node.score[0] += result[0]
-            node.score[1] += result[1]
+            node.visit_count += 1
+            node.score += result
             node = node.parent
 
     def rollout(self, node: Node):
@@ -203,6 +208,35 @@ class Agent:
         player_step = input("Te jössz bohóc:\n")
         return int(player_step)
 
+    def update_tree(self, node):
+        if node not in self.tree:
+            self.tree[node] = {
+                "visit_count": 0,
+                "score": 0,
+                "action": node.action,
+                "selected": node.was_selected,
+                "ucb1": node.ucb1,
+            }
+        self.tree[node]["visit_count"] = node.visit_count
+        self.tree[node]["score"] = node.score
+        self.tree[node]["selected"] = node.was_selected
+        self.tree[node]["ucb1"] = node.ucb1
+
+    def draw_tree(self):
+        dot = graphviz.Digraph(comment="MCTS Tree")
+        for node, data in self.tree.items():
+            node_id = str(id(node))
+            action = data["action"]
+            label = f"Action: {action}\nVisits: {data['visit_count']}\n Score: {data['score']}\n UCB1: {data['ucb1']}"
+            if data["selected"]:
+                dot.node(node_id, label, style="filled", fillcolor="red")
+            else:
+                dot.node(node_id, label)
+            if node.parent:
+                parent_id = str(id(node.parent))
+                dot.edge(parent_id, node_id)
+        dot.render("mcts_tree", format="svg")
+
 
 class Game:
     def __init__(self):
@@ -216,3 +250,4 @@ class Game:
 twoplayermode = True
 game = Game()
 game.game()
+game.agent.draw_tree()
