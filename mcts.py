@@ -3,7 +3,8 @@ import constants
 import numpy as np
 from typing import Optional
 import copy, random
-from graphviz import Digraph
+
+# from graphviz import Digraph
 
 
 class Node:
@@ -106,35 +107,48 @@ class Agent:
         self.root.expand_node()
         self.current_global_node = self.root
         self.current_node = self.root
+        self.turncount = 0
 
     def Turn(self, depth):
+        global is_player_first
+        if is_player_first:
+            agent_action = -1
+        else:
+            agent_action = 1
         while self.current_global_state.is_terminal() is None:
-            for _ in range(depth):
-                print(_)
-                while not self.current_node.is_leaf():
-                    self.current_node = self.current_node.best_child()
-                if self.current_node.visit_count == 0:
-                    copied_node = copy.deepcopy(self.current_node)
-                    evaluation = self.rollout(copied_node)
-                    del copied_node
-                else:
-                    self.current_node.expand_node()
-                    best_child = self.current_node.best_child()
-                    copied_node = copy.deepcopy(best_child)
-                    evaluation = self.rollout(copied_node)
-                    del copied_node
+            if (self.turncount % 2) + is_player_first == 1:
+                pass
+            else:
+                for _ in range(depth):
+                    print(_)
+                    while not self.current_node.is_leaf():
+                        self.current_node = self.current_node.best_child()
+                    if self.current_node.visit_count == 0:
+                        copied_node = copy.deepcopy(self.current_node)
+                        evaluation = self.rollout(copied_node)
+                        del copied_node
+                    else:
+                        eval = self.current_node.expand_node()
+                        if eval is not None:
+                            self.backpropagation(eval)
+                        else:
+                            best_child = self.current_node.best_child()
+                            copied_node = copy.deepcopy(best_child)
+                            evaluation = self.rollout(copied_node)
+                            del copied_node
+                            self.backpropagation(evaluation)
+                    self.current_node = self.current_global_node
+                self.current_global_node = self.current_global_node.robust_child()
+                self.update_global_state()
 
-                self.backpropagation(evaluation)
-                self.current_node = self.current_global_node
+            if (self.turncount % 2) + is_player_first == 1:
+                self.current_global_node = Node(
+                    parent_node=None,
+                    board=self.current_global_state,
+                    action=None,
+                    player=agent_action,
+                )
 
-            self.current_global_node = self.current_global_node.robust_child()
-            self.update_global_state()
-            global_state_to_render = copy.deepcopy(self.current_global_state)
-            if self.turncount % 2 == 1:
-                global_state_to_render.positions *= -1
-            global_state_to_render.render()
-            del global_state_to_render
-            self.current_global_state.turn_table()
             self.turncount += 1
 
     def update_global_state(self):
@@ -166,5 +180,14 @@ class Game:
         self.agent.Turn(500)
 
 
+is_player_first = True
 game = Game()
 game.game()
+
+
+# global_state_to_render = copy.deepcopy(self.current_global_state)
+# if self.turncount % 2 == 1:
+#   global_state_to_render.positions *= -1
+# global_state_to_render.render()
+# del global_state_to_render
+# self.current_global_state.turn_table()
