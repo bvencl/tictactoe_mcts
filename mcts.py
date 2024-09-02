@@ -1,10 +1,7 @@
 from tictactoe import Board
 import constants
-import numpy as np
 from typing import Optional
-import copy, random
-
-# from graphviz import Digraph
+import copy, random, math
 
 
 class Node:
@@ -50,7 +47,7 @@ class Node:
                     parent_node=self,
                     board=self.state,
                     action=action,
-                    player=-self.player,
+                    player=self.player,
                 )
                 for action in self.legal_actions
             ]
@@ -61,7 +58,7 @@ class Node:
             return self
         for child in self.children:
             if child is not None:
-                child.calculate_ucb1()
+                child.ucb1 = child.calculate_ucb1()
         best = self.children[0]
         for child in self.children:
             if child is not None and child.ucb1 > best.ucb1:
@@ -71,21 +68,24 @@ class Node:
     def robust_child(self) -> "Node":
         if not self.children:
             raise ValueError("No children to choose from in robust_child.")
-        best = max(self.children, key=lambda child: child.visit_count)
+        best = max(
+            self.children,
+            key=lambda child: child.visit_count,
+        )
         return best
 
     def confident_child(self) -> "Node":
         if not self.children:
             raise ValueError("No children to choose from in confident_child.")
         best = max(
-            (child for child in self.children if child.ucb1 != np.inf),
+            (child for child in self.children if child.ucb1 != math.inf),
             key=lambda child: child.ucb1,
         )
         return best
 
     def calculate_ucb1(self) -> float:
         if self.visit_count == 0:
-            return np.inf
+            return math.inf
         else:
             if self.parent == None:
                 exploration = 0
@@ -93,7 +93,7 @@ class Node:
                 exploration = (
                     2
                     * constants.UCB_EXPLORATION_CONSTANT
-                    * np.sqrt((2 * np.log(self.parent.visit_count)) / self.visit_count)
+                    * math.sqrt((math.log(self.parent.visit_count)) / self.visit_count)
                 )
                 exploitation = self.score / self.visit_count
             return exploitation + exploration
@@ -105,27 +105,27 @@ class Agent:
         self.current_global_state = current_state
         self.root = Node(parent_node=None, board=current_state, action=None, player=-1)
         self.root.expand_node()
-        self.current_global_node = self.root
         self.current_node = self.root
         self.turncount = 0
 
     def Turn(self, depth):
         global is_player_first
         if is_player_first:
-            agent_action = -1
+            self.agent_action = -1
         else:
-            agent_action = 1
+            self.agent_action = 1
         while self.current_global_state.is_terminal() is None:
             if (self.turncount % 2) + is_player_first == 1:
-                pass
+                self.update_global_state(self.player_turn())
             else:
-                for _ in range(depth):
-                    print(_)
+                for iter in range(depth):
+                    print(iter)
                     while not self.current_node.is_leaf():
                         self.current_node = self.current_node.best_child()
                     if self.current_node.visit_count == 0:
                         copied_node = copy.deepcopy(self.current_node)
                         evaluation = self.rollout(copied_node)
+                        self.backpropagation(evaluation)
                         del copied_node
                     else:
                         eval = self.current_node.expand_node()
@@ -137,22 +137,28 @@ class Agent:
                             evaluation = self.rollout(copied_node)
                             del copied_node
                             self.backpropagation(evaluation)
-                    self.current_node = self.current_global_node
-                self.current_global_node = self.current_global_node.robust_child()
-                self.update_global_state()
-
-            if (self.turncount % 2) + is_player_first == 1:
-                self.current_global_node = Node(
-                    parent_node=None,
-                    board=self.current_global_state,
-                    action=None,
-                    player=agent_action,
-                )
-
+                    self.current_node = self.root
+                self.chosen_node = self.root.robust_child()
+                self.update_global_state(None)
+            self.root = Node(
+                parent_node=None,
+                board=self.current_global_state,
+                action=None,
+                player=self.agent_action,
+            )
+            self.root.expand_node()
+            self.current_node = self.root
+            self.current_global_state.render()
             self.turncount += 1
 
-    def update_global_state(self):
-        self.current_global_state.step(self.current_global_node.action, 1)
+    def update_global_state(self, action: Optional[int]):
+        if action is None:
+            self.current_global_state.step(self.chosen_node.action, self.agent_action)
+        else:
+            self.current_global_state.step(action=action, player=-self.agent_action)
+
+    def player_turn(self):
+        return int(input("Te jössz bohóc!\n"))
 
     def backpropagation(self, result):
         node = self.current_node
@@ -177,17 +183,9 @@ class Game:
         self.agent = Agent(self.board)
 
     def game(self):
-        self.agent.Turn(500)
+        self.agent.Turn(1000)
 
 
 is_player_first = True
 game = Game()
 game.game()
-
-
-# global_state_to_render = copy.deepcopy(self.current_global_state)
-# if self.turncount % 2 == 1:
-#   global_state_to_render.positions *= -1
-# global_state_to_render.render()
-# del global_state_to_render
-# self.current_global_state.turn_table()
