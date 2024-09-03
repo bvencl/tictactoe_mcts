@@ -183,7 +183,7 @@ class Game:
         self.agent = Agent(self.board)
 
     def game(self):
-        self.agent.Turn(1000)
+        self.agent.Turn(500)
 
 
 is_player_first = True
