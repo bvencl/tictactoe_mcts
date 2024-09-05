@@ -34,9 +34,7 @@ class Node:
             return None
 
     def is_leaf(self):
-        if self.children == [] or self.is_terminal_node is not None:
-            return True
-        return False
+        return self.children == [] or self.is_terminal_node is not None
 
     def expand_node(self):
         if self.is_terminal_node is not None:
@@ -51,7 +49,6 @@ class Node:
                 )
                 for action in self.legal_actions
             ]
-            self.children_count = len(self.children)
 
     def best_child(self) -> "Node":
         if self.is_terminal_node is not None:
@@ -107,6 +104,7 @@ class Agent:
         self.root.expand_node()
         self.current_node = self.root
         self.turncount = 0
+        self.iteration_time = 0
 
     def Turn(self, depth):
         global is_player_first
@@ -138,8 +136,9 @@ class Agent:
                             del copied_node
                             self.backpropagation(evaluation)
                     self.current_node = self.root
-                self.chosen_node = self.root.robust_child()
+                self.chosen_node = self.root.confident_child()
                 self.update_global_state(None)
+
             self.root = Node(
                 parent_node=None,
                 board=self.current_global_state,
@@ -183,7 +182,7 @@ class Game:
         self.agent = Agent(self.board)
 
     def game(self):
-        self.agent.Turn(500)
+        self.agent.Turn(1000)
 
 
 is_player_first = True
