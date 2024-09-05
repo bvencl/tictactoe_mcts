@@ -49,7 +49,7 @@ class Node:
     def expand_node(self):
         if self.is_terminal_node is not None:
             return self.evaluate()
-        else:
+        elif not self.children:
             self.children = [
                 Node(
                     parent_node=self,
@@ -59,7 +59,7 @@ class Node:
                 )
                 for action in self.legal_actions
             ]
-            self.children_count = len(self.children)
+            # self.children_count = len(self.children)
 
     def best_child(self) -> "Node":
         if self.is_terminal_node is not None:
