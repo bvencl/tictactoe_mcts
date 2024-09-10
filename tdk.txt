@@ -1,7 +1,7 @@
-intro: 2-3 oldal, comuter vision fejlődése, milyen jó, reedmények, objektumdetektálás, class, szelektálás.
+intro: 2-3 oldal, computer vision fejlődése, milyen jó, eredmények, detektálás, class, szelektálás.
     Problémafelvetés: rengeteg adat kell a tanításhoz, production környezetben ciklikusan új adat érkezik, nem egyértelmű from sketch, vagy finetune
     Contribution: A batch-ek sorrendje 
-Bemutatás:  3-4 oldal Deep learning, cnn felépülés, classification, baackend, head, milyen rétegek, mit csinálnak, miért jó a cnn a dens-hez képest. Aktivációs függvények, optimációs függvények
+Bemutatás:  3-4 oldal Deep learning, cnn felépülés, classification, baackend, head, milyen rétegek, mit csinálnak, miért jó a cnn a dens-hez képest. Aktivációs függvények, optimalizációs függvények
             MCTS széles leírása.
             Saját algoritmus leírása:
                 Hogyan építettük ezt fel, hogyan tettük itt alkalmassá erre az mcts-tanításhoz
